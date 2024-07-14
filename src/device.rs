@@ -239,6 +239,7 @@ impl<'a, 'b> DeviceHandle<'a> {
             if err == Error::Success {
                 Ok(StreamHandle {
                     handle: handle.assume_init(),
+                    still_handle: None,
                     devh: self,
                 })
             } else {

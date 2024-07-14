@@ -12,6 +12,7 @@ unsafe impl<'a> Sync for StreamHandle<'a> {}
 /// Stream handle
 pub struct StreamHandle<'a> {
     pub(crate) handle: uvc_stream_ctrl_t,
+    pub(crate) still_handle: Option<uvc_still_ctrl_t>,
     pub(crate) devh: &'a DeviceHandle<'a>,
 }
 
@@ -28,6 +29,7 @@ unsafe impl<'a, U: Send + Sync> Sync for ActiveStream<'a, U> {}
 /// Dropping this stream will stop the stream
 pub struct ActiveStream<'a, U: Send + Sync> {
     devh: &'a crate::DeviceHandle<'a>,
+    pub(crate) still_handle: Option<uvc_still_ctrl_t>,
     #[allow(unused)]
     vtable: *mut Vtable<U>,
 }
@@ -36,6 +38,20 @@ impl<'a, U: Send + Sync> ActiveStream<'a, U> {
     /// Stop the stream
     pub fn stop(self) {
         // Taking ownership of the stream, which drops it
+    }
+    pub fn trigger_still(&mut self) -> Result<u8> {
+        unsafe {
+            let err = uvc_trigger_still(
+                self.devh.devh.as_ptr(),
+                &mut self.still_handle.unwrap(),
+            )
+            .into();
+            if err == Error::Success {
+                Ok(0)
+            } else {
+                Err(err)
+            }
+        }
     }
 }
 
@@ -105,7 +121,35 @@ impl<'a> StreamHandle<'a> {
             if err == Error::Success {
                 Ok(ActiveStream {
                     devh: self.devh,
+                    still_handle: self.still_handle,
                     vtable: tuple,
+                })
+            } else {
+                Err(err)
+            }
+        }
+    }
+    pub fn get_still_ctrl_format_size(
+        &'a mut self,
+        width: u32,
+        height: u32,
+    ) -> Result<StreamHandle<'a>>
+    {
+        unsafe {
+            let mut still_handle = std::mem::MaybeUninit::uninit();
+            let err = uvc_get_still_ctrl_format_size(
+                self.devh.devh.as_ptr(),
+                &mut self.handle,
+                still_handle.as_mut_ptr(),
+                width as i32,
+                height as i32,
+            )
+            .into();
+            if err == Error::Success {
+                Ok(StreamHandle {
+                    handle: self.handle,
+                    still_handle: Some(still_handle.assume_init()),
+                    devh: self.devh,
                 })
             } else {
                 Err(err)
