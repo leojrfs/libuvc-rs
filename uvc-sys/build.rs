@@ -8,7 +8,9 @@ fn main() {
     if std::env::var_os("CARGO_FEATURE_VENDOR").is_some() {
         includedir = Some(std::env::var("DEP_UVCSRC_INCLUDE").unwrap());
     } else {
-        println!("cargo:rustc-link-lib=uvc");
+        // TODO: figure out a better way to make it build with buildroot
+        // HACK: force dylib, buildroot somehow tries to find the static lib by default
+        println!("cargo:rustc-link-lib=dylib=uvc");
         if cfg!(target_os = "freebsd") {
             includedir = Some("/usr/local/include".to_owned());
         }
